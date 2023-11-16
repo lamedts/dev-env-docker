@@ -5,7 +5,7 @@ if [ $1 = 'down' ]
 then
     if [ $2 = 'redis' ]
     then
-        ip=$(ipconfig getifaddr en0) docker-compose -f redis/docker-compose.yml stop
+        ip=$(ipconfig getifaddr en0) docker-compose -f redis/docker-compose.yml down --rmi local
     fi
     if [ $2 = 'kafka' ]
     then
