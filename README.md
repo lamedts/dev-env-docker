@@ -15,7 +15,7 @@ port: 2000
 
 
 ```bash
-docker-compose -f docker-compose.yml --env-file .env  up
+docker-compose -f {}/docker-compose.yml --env-file .env  up
 ```
 
 `.env` file
