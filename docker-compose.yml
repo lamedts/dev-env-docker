@@ -1,0 +1,183 @@
+services:
+
+
+  redis-node1:
+    image: laed/redis
+    build: ./redis
+    ports:
+      - "7000:7000"
+      - "17000:17000"
+    restart: always
+    entrypoint: [redis-server, /etc/redis/rediscluster.conf, --port,"7000", --cluster-announce-ip,"${ip}"]
+
+  redis-node2:
+    image: laed/redis
+    build: ./redis
+    ports:
+      - "7001:7001"
+      - "17001:17001"
+    restart: always
+    entrypoint: [redis-server, /etc/redis/rediscluster.conf,--port,"7001",--cluster-announce-ip,"${ip}"]
+
+  redis-node3:
+    image: laed/redis
+    build: ./redis
+    ports:
+      - "7002:7002"
+      - "17002:17002"
+    restart: always
+    entrypoint: [redis-server, /etc/redis/rediscluster.conf,--port,"7002",--cluster-announce-ip,"${ip}"]
+
+  redis-node4:
+    image: laed/redis
+    build: ./redis
+    ports:
+      - "7003:7003"
+      - "17003:17003"
+    restart: always
+    entrypoint: [redis-server, /etc/redis/rediscluster.conf,--port,"7003",--cluster-announce-ip,"${ip}"]
+
+  redis-node5:
+    image: laed/redis
+    build: ./redis
+    ports:
+      - "7004:7004"
+      - "17004:17004"
+    restart: always
+    entrypoint: [redis-server, /etc/redis/rediscluster.conf,--port,"7004",--cluster-announce-ip,"${ip}"]
+
+  redis-node6:
+    image: laed/redis
+    build: ./redis
+    ports:
+      - "7005:7005"
+      - "17005:17005"
+    restart: always
+    entrypoint: [redis-server, /etc/redis/rediscluster.conf,--port,"7005",--cluster-announce-ip,"${ip}"]
+
+  redis-cluster-creator:
+    image: redis:6.0.3
+    entrypoint: [/bin/sh,-c,'echo "yes" | redis-cli --cluster create ${ip}:7000 ${ip}:7001 ${ip}:7002 ${ip}:7003 ${ip}:7004 ${ip}:7005 --cluster-replicas 1']
+    depends_on:
+      - redis-node1
+      - redis-node2
+      - redis-node3
+      - redis-node4
+      - redis-node5
+      - redis-node6
+
+  redisinsight:
+    image: "redis/redisinsight:2.50"
+    container_name: redisinsight
+    ports:
+      - "5540:5540"
+    volumes:
+      - redisinsight-data:/db
+    depends_on:
+      - redis-node1
+      - redis-node2
+      - redis-node3
+      - redis-node4
+      - redis-node5
+      - redis-node6
+
+  redisinsight-config:
+    image: ellerbrock/alpine-bash-curl-ssl
+    entrypoint: [ ]
+    depends_on:
+      - redisinsight
+      - redis-node1
+      - redis-node2
+      - redis-node3
+      - redis-node4
+      - redis-node5
+      - redis-node6
+    command: [
+        "/bin/bash", "-c",
+        "sleep 20 && curl --location 'redisinsight:5540/api/databases' \
+          --request POST \
+          --header 'Content-Type: application/json' \
+          --data-raw  '{
+              \"name\": \"127.0.0.1:7000\",
+              \"host\": \"redis-node1\",
+              \"port\": 7000,
+              \"db\": 0,
+              \"compressor\": \"NONE\",
+              \"timeout\": 30000
+          }'"
+        ]
+
+  zookeeper:
+    container_name: kafka_zookeeper
+    image: docker.io/bitnami/zookeeper:3.7
+    ports:
+      - "2181:2181"
+    volumes:
+      - "zookeeper_data:/bitnami"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+
+  kafka:
+    container_name: kafka_kafka-node-1
+    image: docker.io/bitnami/kafka:3
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    volumes:
+      - "kafka_data:/bitnami"
+    environment:
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CLIENT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CFG_LISTENERS=CLIENT://:9092,EXTERNAL://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=CLIENT://kafka:9092,EXTERNAL://localhost:9093
+      - KAFKA_INTER_BROKER_LISTENER_NAME=CLIENT
+    healthcheck:
+      test: ["CMD", "/opt/bitnami/kafka/bin/kafka-topics.sh", "--list", "--bootstrap-server", "kafka:9092"]
+      interval: 5s
+      timeout: 60s
+      retries: 20
+    depends_on:
+      - zookeeper
+
+  kafka-init:
+    image: docker.io/bitnami/kafka:3
+    command: [ "/bin/bash", "-c", "/create_topic.sh"]
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./kafka/create_topic.sh
+        target: /create_topic.sh
+      - type: bind
+        source: ./kafka/kafka-topic
+        target: /kafka-topic
+    init: true
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui
+    container_name: kafka_ui
+    ports:
+      - "18080:8080"
+    restart: always
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
+      - KAFKA_CLUSTERS_0_ZOOKEEPER=zookeeper:2181
+    depends_on:
+      kafka:
+        condition: service_healthy
+      zookeeper:
+        condition: service_started
+
+
+volumes:
+  redisinsight-data:
+    driver: local
+  zookeeper_data:
+    driver: local
+  kafka_data:
+    driver: local

@@ -29,3 +29,5 @@ ui: http://localhost:18080
 broker: bootstrap-servers: localhost:9093
 <br>
 > PS create topic first
+
+ip=$(ipconfig getifaddr en0) docker-compose
