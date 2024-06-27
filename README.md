@@ -30,4 +30,5 @@ broker: bootstrap-servers: localhost:9093
 <br>
 > PS create topic first
 
-ip=$(ipconfig getifaddr en0) docker-compose
+ip=$(ipconfig getifaddr en0) docker-compose up
+ip=$(ipconfig getifaddr en0) docker-compose down -v -rmi all
